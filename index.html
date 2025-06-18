@@ -1,28 +1,75 @@
 <!DOCTYPE html>
 <html>
-  <head><meta charset="UTF-8"><title>Watsonx desde iframe</title></head>
-  <body>
-    <input type="text" id="prompt" placeholder="Escribí algo para Watsonx">
-    <button onclick="send()">Enviar</button>
-    <pre id="resultado">Esperando...</pre>
+<head>
+  <meta charset="UTF-8">
+  <title>Watsonx ML desde iframe</title>
+</head>
+<body>
+  <h2>Conexión a Watsonx ML</h2>
+  <button onclick="iniciarWatson()">Enviar solicitud</button>
+  <pre id="resultado">Esperando respuesta...</pre>
 
-    <script>
-      function send() {
-        const prompt = document.getElementById("prompt").value;
-        fetch("https://api.au-syd.assistant.watson.cloud.ibm.com/instances/595e4fc8-dd96-4972-abb5-01e2aa03bdd9", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt })
-        })
-        .then(r => r.json())
-        .then(r => {
-          document.getElementById("resultado").innerText = JSON.stringify(r, null, 2);
-        })
-        .catch(err => {
-          document.getElementById("resultado").innerText = "Error: " + err.message;
-        });
-      }
-    </script>
-  </body>
+  <script>
+    const API_KEY = "w4BamnwSY9QMkR6A48Js6LEbom1fIffbibcmwuqW4wQx";
+    const SCORING_URL = "https://us-south.ml.cloud.ibm.com/ml/v4/deployments/ec659301-3710-4d11-a254-974b20bf9239/ai_service_stream?version=2021-05-01";
+
+    function getToken(errorCallback, loadCallback) {
+      const req = new XMLHttpRequest();
+      req.addEventListener("load", loadCallback);
+      req.addEventListener("error", errorCallback);
+      req.open("POST", "https://iam.cloud.ibm.com/identity/token");
+      req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+      req.setRequestHeader("Accept", "application/json");
+      req.send("grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=" + API_KEY);
+    }
+
+    function apiPost(scoring_url, token, payload, loadCallback, errorCallback) {
+      const oReq = new XMLHttpRequest();
+      oReq.addEventListener("load", loadCallback);
+      oReq.addEventListener("error", errorCallback);
+      oReq.open("POST", scoring_url);
+      oReq.setRequestHeader("Accept", "application/json");
+      oReq.setRequestHeader("Authorization", "Bearer " + token);
+      oReq.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+      oReq.send(payload);
+    }
+
+    function iniciarWatson() {
+      getToken(
+        (err) => mostrarResultado("❌ Error al obtener token: " + err),
+        function () {
+          let tokenResponse;
+          try {
+            tokenResponse = JSON.parse(this.responseText);
+          } catch (ex) {
+            return mostrarResultado("❌ Error al parsear token");
+          }
+
+          const payload = JSON.stringify({
+            messages: [{ content: "Hola Watson", role: "user" }]
+          });
+
+          apiPost(SCORING_URL, tokenResponse.access_token, payload,
+            function () {
+              let parsed;
+              try {
+                parsed = JSON.parse(this.responseText);
+              } catch (ex) {
+                return mostrarResultado("❌ Error al parsear respuesta");
+              }
+              mostrarResultado("✅ Respuesta:\n" + JSON.stringify(parsed, null, 2));
+            },
+            function (err) {
+              mostrarResultado("❌ Error al hacer POST: " + err);
+            });
+        }
+      );
+    }
+
+    function mostrarResultado(texto) {
+      document.getElementById("resultado").innerText = texto;
+    }
+  </script>
+</body>
 </html>
  
